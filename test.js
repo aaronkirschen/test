@@ -5,6 +5,7 @@ window.custom = function() {
         LOG_LEVEL: "debug",
         MAX_RETRIES: 10,
         RETRY_DELAY: 500, // milliseconds
+        MAX_DEPTH: 10,    // Maximum depth for recursion
     };
 
     let config = {...defaultConfig};
@@ -35,11 +36,17 @@ window.custom = function() {
             return null;
         }
 
-        function searchForTrajectory(obj, path = '') {
+        const visited = new Set();
+
+        function searchForTrajectory(obj, path = '', depth = 0) {
             if (!obj || typeof obj !== 'object') return null;
+            if (depth > config.MAX_DEPTH) return null;
+            if (visited.has(obj)) return null;
+            
+            visited.add(obj);
             
             // Check if this object has questions with trajectory
-            if (obj.questions) {
+            if (obj.questions && typeof obj.questions === 'object') {
                 for (const [key, entry] of Object.entries(obj.questions)) {
                     try {
                         if (entry?.item_type === "fr" && entry?.text) {
@@ -50,7 +57,7 @@ window.custom = function() {
                             }
                         }
                     } catch (error) {
-                        log.debug(`Failed to parse entry at ${path}.questions.${key}`, error);
+                        log.debug(`Failed to parse entry at ${path}.questions.${key}`);
                     }
                 }
             }
@@ -58,7 +65,7 @@ window.custom = function() {
             // Recursively search nested objects
             for (const key in obj) {
                 if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                    const result = searchForTrajectory(obj[key], `${path}.${key}`);
+                    const result = searchForTrajectory(obj[key], `${path}.${key}`, depth + 1);
                     if (result) return result;
                 }
             }
@@ -66,7 +73,12 @@ window.custom = function() {
             return null;
         }
 
-        return searchForTrajectory(window.hybrid.forms.validations);
+        try {
+            return searchForTrajectory(window.hybrid.forms.validations);
+        } catch (error) {
+            log.error('Error during trajectory search:', error);
+            return null;
+        }
     }
 
     function attemptInitialization() {
