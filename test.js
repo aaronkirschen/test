@@ -1,4 +1,5 @@
 window.custom = function() {
+    //v1
     'use strict';
 
     const defaultConfig = {
